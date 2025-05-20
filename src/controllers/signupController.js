@@ -3,6 +3,9 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
 
+import { cryptoUtils } from '../utils/cryptoUtils.js';
+const { encrypt, decrypt } = cryptoUtils;
+
 dotenv.config();
 
 export const signup = async (req, res) => {
@@ -58,63 +61,60 @@ export const login = async (req, res) => {
 export const createItem = async (req, res) => {
   const { name, password } = req.body;
   try {
-    if (!req.user || !req.user.userId) {
+    if (!req.user?.userId) {
       return res.status(401).json({ error: 'Não autorizado' });
     }
 
     const existingItem = await prisma.item.findFirst({ 
-      where: { 
-        name,
-        userId: req.user.userId 
-      } 
+      where: { name, userId: req.user.userId } 
     });
 
     if (existingItem) {
-      return res.status(409).json({ error: 'Item já existe para este usuário' });
+      return res.status(409).json({ error: 'Item já existe' });
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const encryptedPassword = encrypt(password); 
 
     const item = await prisma.item.create({
       data: {
+        userId: req.user.userId,
         name,
-        password: hashedPassword,
-        userId: req.user.userId 
+        password: encryptedPassword, 
       },
     });
 
     return res.status(201).json({ 
       message: 'Item criado com sucesso', 
-      itemId: item.id 
+      itemId: item.id,
     });
   } catch (error) {
     console.error(error);
     return res.status(500).json({ error: 'Erro interno do servidor' });
   }
-  
 };
 
 export const getItens = async (req, res) => {
   try {
-    if (!req.user || !req.user.userId) {
+    if (!req.user?.userId) {
       return res.status(401).json({ error: 'Não autorizado' });
     }
 
     const itens = await prisma.item.findMany({
-      where: {
-        userId: req.user.userId
-      },
-      select: {
-        id: true,
-        name: true,
-      }
+      where: { userId: req.user.userId },
+      select: { id: true, name: true, password: true },
+    });
+
+     const itensComSenhaDescriptografada = itens.map(item => {
+      return {
+        ...item,
+        password: decrypt(item.password), 
+      };
     });
 
     return res.status(200).json({
       message: 'Itens listados com sucesso',
-      itens
+      itens: itensComSenhaDescriptografada,
     });
-
   } catch (error) {
     console.error('Erro ao buscar itens:', error);
     return res.status(500).json({ error: 'Erro interno do servidor' });
