@@ -1,8 +1,14 @@
+const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 export const validateSignup = (req, res, next) => {
   const { name, email, password, confirmPassword } = req.body;
 
   if (!name || !email || !password || !confirmPassword) {
     return res.status(400).json({ error: 'Todos os campos são obrigatórios' });
+  }
+
+  if (!emailRegex.test(email)) {
+    return res.status(400).json({ error: 'E-mail inválido' });
   }
 
   if (password !== confirmPassword) {
@@ -19,8 +25,12 @@ export const validateLogin = (req, res, next) => {
     return res.status(400).json({ error: 'Todos os campos são obrigatórios' });
   }
 
+  if (!emailRegex.test(email)) {
+    return res.status(400).json({ error: 'E-mail inválido' });
+  }
+
   next();
-}
+};
 
 export const validateItem = (req, res, next) => {
   const { name, password } = req.body;
@@ -30,4 +40,5 @@ export const validateItem = (req, res, next) => {
   }
 
   next();
-}
+};
+

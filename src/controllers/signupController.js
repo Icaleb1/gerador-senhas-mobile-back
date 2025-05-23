@@ -11,22 +11,32 @@ dotenv.config();
 export const signup = async (req, res) => {
   const { name, email, password } = req.body;
 
-  const existingUser = await prisma.user.findUnique({ where: { email } });
-  if (existingUser) {
-    return res.status(409).json({ error: 'E-mail já cadastrado' });
+  try {
+    const existingUser = await prisma.user.findUnique({ where: { email } });
+    if (existingUser) {
+      return res.status(409).json({ error: 'E-mail já cadastrado' });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const user = await prisma.user.create({
+      data: {
+        name,
+        email,
+        password: hashedPassword,
+      },
+    });
+
+    return res.status(201).json({ message: 'Usuário criado com sucesso', userId: user.id });
+
+  } catch (error) {
+    if (error.code === 'P2002') {
+      return res.status(409).json({ error: 'E-mail já cadastrado' });
+    }
+
+    console.error('Erro no cadastro:', error);
+    return res.status(500).json({ error: 'Erro interno do servidor' });
   }
-
-  const hashedPassword = await bcrypt.hash(password, 10);
-
-  const user = await prisma.user.create({
-    data: {
-      name,
-      email,
-      password: hashedPassword,
-    },
-  });
-
-  return res.status(201).json({ message: 'Usuário criado com sucesso', userId: user.id });
 };
 
 export const login = async (req, res) => {
@@ -117,6 +127,38 @@ export const getItens = async (req, res) => {
     });
   } catch (error) {
     console.error('Erro ao buscar itens:', error);
+    return res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+};
+
+export const deleteItem = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    if (!req.user?.userId) {
+      return res.status(401).json({ error: 'Não autorizado' });
+    }
+
+    const existingItem = await prisma.item.findUnique({
+      where: { id },
+    });
+
+    if (!existingItem) {
+      return res.status(404).json({ error: 'Item não encontrado' });
+    }
+
+    if (existingItem.userId !== req.user.userId) {
+      return res.status(403).json({ error: 'Acesso negado. Este item não pertence a você.' });
+    }
+
+    await prisma.item.delete({
+      where: { id },
+    });
+
+    return res.status(200).json({ message: 'Item deletado com sucesso' });
+
+  } catch (error) {
+    console.error('Erro ao deletar item:', error);
     return res.status(500).json({ error: 'Erro interno do servidor' });
   }
 };
